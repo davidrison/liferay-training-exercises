@@ -1,0 +1,6 @@
+Bundle-Version: 1.0.0
+Fragment-Host: com.liferay.document.library.web;bundle-version="1.0.11"
+-sources: true
+
+-jsp: *.jsp,*.jspf
+-plugin.jsp: com.liferay.ant.bnd.jsp.JspAnalyzerPlugin
