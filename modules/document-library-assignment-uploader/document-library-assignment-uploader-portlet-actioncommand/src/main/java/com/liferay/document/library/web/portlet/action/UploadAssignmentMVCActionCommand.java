@@ -32,11 +32,7 @@ import com.liferay.document.library.kernel.model.DLFileEntry;
 import com.liferay.document.library.kernel.service.DLAppService;
 import com.liferay.document.library.web.constants.DLPortletKeys;
 import com.liferay.dynamic.data.mapping.kernel.StorageFieldRequiredException;
-import com.liferay.portal.kernel.exception.PortalException;
-import com.liferay.portal.kernel.json.JSONFactoryUtil;
-import com.liferay.portal.kernel.json.JSONObject;
 import com.liferay.portal.kernel.lock.DuplicateLockException;
-import com.liferay.portal.kernel.portlet.JSONPortletResponseUtil;
 import com.liferay.portal.kernel.portlet.bridges.mvc.BaseMVCActionCommand;
 import com.liferay.portal.kernel.portlet.bridges.mvc.MVCActionCommand;
 import com.liferay.portal.kernel.repository.model.FileEntry;
@@ -44,24 +40,18 @@ import com.liferay.portal.kernel.repository.model.Folder;
 import com.liferay.portal.kernel.security.auth.PrincipalException;
 import com.liferay.portal.kernel.service.ServiceContext;
 import com.liferay.portal.kernel.service.ServiceContextFactory;
-import com.liferay.portal.kernel.servlet.ServletResponseConstants;
 import com.liferay.portal.kernel.servlet.SessionErrors;
 import com.liferay.portal.kernel.theme.ThemeDisplay;
 import com.liferay.portal.kernel.upload.LiferayFileItemException;
 import com.liferay.portal.kernel.upload.UploadPortletRequest;
 import com.liferay.portal.kernel.upload.UploadRequestSizeException;
-import com.liferay.portal.kernel.util.Constants;
-import com.liferay.portal.kernel.util.ContentTypes;
 import com.liferay.portal.kernel.util.MimeTypesUtil;
 import com.liferay.portal.kernel.util.ParamUtil;
 import com.liferay.portal.kernel.util.PortalUtil;
-import com.liferay.portal.kernel.util.PrefsPropsUtil;
-import com.liferay.portal.kernel.util.PropsKeys;
 import com.liferay.portal.kernel.util.StreamUtil;
 import com.liferay.portal.kernel.util.StringPool;
-import com.liferay.portal.kernel.util.StringUtil;
-import com.liferay.portal.kernel.util.TextFormatter;
 import com.liferay.portal.kernel.util.WebKeys;
+import com.liferay.portlet.PortletURLImpl;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
@@ -69,8 +59,6 @@ import javax.portlet.ActionRequest;
 import javax.portlet.ActionResponse;
 import javax.portlet.PortletConfig;
 import javax.portlet.PortletRequest;
-import javax.portlet.PortletResponse;
-import javax.servlet.http.HttpServletResponse;
 import java.io.InputStream;
 
 /**
@@ -85,198 +73,7 @@ import java.io.InputStream;
 )
 public class UploadAssignmentMVCActionCommand extends BaseMVCActionCommand {
 
-	@Override
-	protected void doProcessAction(
-			ActionRequest actionRequest, ActionResponse actionResponse)
-			throws Exception {
-
-		String cmd = ParamUtil.getString(actionRequest, Constants.CMD);
-
-		FileEntry fileEntry = null;
-
-		PortletConfig portletConfig = getPortletConfig(actionRequest);
-
-		try {
-			fileEntry = updateFileEntry(
-					portletConfig, actionRequest, actionResponse);
-
-			String redirect = ParamUtil.getString(
-						actionRequest, "redirect");
-
-			sendRedirect(actionRequest, actionResponse, redirect);
-
-		}
-		catch (Exception e) {
-			handleUploadException(
-					portletConfig, actionRequest, actionResponse, cmd, e);
-		}
-	}
-
-	protected String[] getAllowedFileExtensions(
-			PortletConfig portletConfig, PortletRequest portletRequest,
-			PortletResponse portletResponse)
-			throws PortalException {
-		return PrefsPropsUtil.getStringArray(
-				PropsKeys.DL_FILE_EXTENSIONS, StringPool.COMMA);
-	}
-
-	protected void handleUploadException(
-			PortletConfig portletConfig, ActionRequest actionRequest,
-			ActionResponse actionResponse, String cmd, Exception e)
-			throws Exception {
-
-		if (e instanceof AssetCategoryException ||
-				e instanceof AssetTagException) {
-
-			SessionErrors.add(actionRequest, e.getClass(), e);
-		}
-		else if (e instanceof AntivirusScannerException ||
-				e instanceof DuplicateFileEntryException ||
-				e instanceof DuplicateFolderNameException ||
-				e instanceof FileExtensionException ||
-				e instanceof FileMimeTypeException ||
-				e instanceof FileNameException ||
-				e instanceof FileSizeException ||
-				e instanceof LiferayFileItemException ||
-				e instanceof NoSuchFolderException ||
-				e instanceof SourceFileNameException ||
-				e instanceof StorageFieldRequiredException ||
-				e instanceof UploadRequestSizeException) {
-
-			if (!cmd.equals(Constants.ADD_DYNAMIC) &&
-					!cmd.equals(Constants.ADD_MULTIPLE) &&
-					!cmd.equals(Constants.ADD_TEMP)) {
-
-				if (e instanceof AntivirusScannerException) {
-					SessionErrors.add(actionRequest, e.getClass(), e);
-				}
-				else {
-					SessionErrors.add(actionRequest, e.getClass());
-				}
-
-				return;
-			}
-			else if (cmd.equals(Constants.ADD_TEMP)) {
-				hideDefaultErrorMessage(actionRequest);
-			}
-
-			if (e instanceof AntivirusScannerException ||
-					e instanceof DuplicateFileEntryException ||
-					e instanceof FileExtensionException ||
-					e instanceof FileNameException ||
-					e instanceof FileSizeException ||
-					e instanceof UploadRequestSizeException) {
-
-				HttpServletResponse response =
-						PortalUtil.getHttpServletResponse(actionResponse);
-
-				response.setContentType(ContentTypes.TEXT_HTML);
-				response.setStatus(HttpServletResponse.SC_OK);
-
-				String errorMessage = StringPool.BLANK;
-				int errorType = 0;
-
-				ThemeDisplay themeDisplay =
-						(ThemeDisplay)actionRequest.getAttribute(
-								WebKeys.THEME_DISPLAY);
-
-				if (e instanceof AntivirusScannerException) {
-					AntivirusScannerException ase =
-							(AntivirusScannerException)e;
-
-					errorMessage = themeDisplay.translate(ase.getMessageKey());
-					errorType =
-							ServletResponseConstants.SC_FILE_ANTIVIRUS_EXCEPTION;
-				}
-
-				if (e instanceof DuplicateFileEntryException) {
-					errorMessage = themeDisplay.translate(
-							"please-enter-a-unique-document-name");
-					errorType =
-							ServletResponseConstants.SC_DUPLICATE_FILE_EXCEPTION;
-				}
-				else if (e instanceof FileExtensionException) {
-					errorMessage = themeDisplay.translate(
-							"please-enter-a-file-with-a-valid-extension-x",
-							StringUtil.merge(
-									getAllowedFileExtensions(
-											portletConfig, actionRequest, actionResponse)));
-					errorType =
-							ServletResponseConstants.SC_FILE_EXTENSION_EXCEPTION;
-				}
-				else if (e instanceof FileNameException) {
-					errorMessage = themeDisplay.translate(
-							"please-enter-a-file-with-a-valid-file-name");
-					errorType = ServletResponseConstants.SC_FILE_NAME_EXCEPTION;
-				}
-				else if (e instanceof FileSizeException) {
-					long fileMaxSize = PrefsPropsUtil.getLong(
-							PropsKeys.DL_FILE_MAX_SIZE);
-
-					if (fileMaxSize == 0) {
-						fileMaxSize = PrefsPropsUtil.getLong(
-								PropsKeys.UPLOAD_SERVLET_REQUEST_IMPL_MAX_SIZE);
-					}
-
-					errorMessage = themeDisplay.translate(
-							"please-enter-a-file-with-a-valid-file-size-no-larger" +
-									"-than-x",
-							TextFormatter.formatStorageSize(
-									fileMaxSize, themeDisplay.getLocale()));
-
-					errorType = ServletResponseConstants.SC_FILE_SIZE_EXCEPTION;
-				}
-
-				JSONObject jsonObject = JSONFactoryUtil.createJSONObject();
-
-				jsonObject.put("message", errorMessage);
-				jsonObject.put("status", errorType);
-
-				JSONPortletResponseUtil.writeJSON(
-						actionRequest, actionResponse, jsonObject);
-			}
-
-			if (e instanceof AntivirusScannerException) {
-				SessionErrors.add(actionRequest, e.getClass(), e);
-			}
-			else {
-				SessionErrors.add(actionRequest, e.getClass());
-			}
-		}
-		else if (e instanceof DuplicateLockException ||
-				e instanceof FileEntryLockException.MustOwnLock ||
-				e instanceof InvalidFileVersionException ||
-				e instanceof NoSuchFileEntryException ||
-				e instanceof PrincipalException) {
-
-			if (e instanceof DuplicateLockException) {
-				DuplicateLockException dle = (DuplicateLockException)e;
-
-				SessionErrors.add(actionRequest, dle.getClass(), dle.getLock());
-			}
-			else {
-				SessionErrors.add(actionRequest, e.getClass());
-			}
-
-			actionResponse.setRenderParameter(
-					"mvcPath", "/document_library/error.jsp");
-		}
-		else {
-			Throwable cause = e.getCause();
-
-			if (cause instanceof DuplicateFileEntryException) {
-				SessionErrors.add(
-						actionRequest, DuplicateFileEntryException.class);
-			}
-			else {
-				throw e;
-			}
-		}
-	}
-
-	protected FileEntry updateFileEntry(
-			PortletConfig portletConfig, ActionRequest actionRequest,
-			ActionResponse actionResponse)
+	protected FileEntry addFileEntry(ActionRequest actionRequest)
 			throws Exception {
 
 		UploadPortletRequest uploadPortletRequest =
@@ -324,6 +121,79 @@ public class UploadAssignmentMVCActionCommand extends BaseMVCActionCommand {
 		}
 		finally {
 			StreamUtil.cleanUp(inputStream);
+		}
+	}
+
+	@Override
+	protected void doProcessAction(
+			ActionRequest actionRequest, ActionResponse actionResponse)
+			throws Exception {
+
+		PortletConfig portletConfig = getPortletConfig(actionRequest);
+
+		try {
+			addFileEntry(actionRequest);
+		}
+		catch (Exception e) {
+			handleUploadException(actionRequest, e);
+
+			String redirect = ParamUtil.getString(
+					actionRequest, "redirect");
+
+			String errorRedirect = getErrorRedirect(portletConfig, actionRequest, redirect);
+
+			sendRedirect(actionRequest, actionResponse, errorRedirect);
+		}
+	}
+
+	protected String getErrorRedirect(
+			PortletConfig portletConfig, ActionRequest actionRequest, String redirect)
+			throws Exception {
+
+		ThemeDisplay themeDisplay = (ThemeDisplay)actionRequest.getAttribute(
+				WebKeys.THEME_DISPLAY);
+
+		PortletURLImpl portletURL = new PortletURLImpl(
+				actionRequest, portletConfig.getPortletName(),
+				themeDisplay.getPlid(), PortletRequest.RENDER_PHASE);
+
+		portletURL.setParameter(
+				"mvcRenderCommandName", "/document_library/upload_assignment");
+		portletURL.setParameter("redirect", redirect, false);
+		portletURL.setWindowState(actionRequest.getWindowState());
+
+		return portletURL.toString();
+	}
+
+
+	protected void handleUploadException(
+			ActionRequest actionRequest, Exception e)
+			throws Exception {
+
+		if (e instanceof AssetCategoryException ||
+			e instanceof AssetTagException ||
+			e instanceof AntivirusScannerException ||
+			e instanceof DuplicateFileEntryException ||
+			e instanceof DuplicateFolderNameException ||
+			e instanceof FileExtensionException ||
+			e instanceof FileMimeTypeException ||
+			e instanceof FileNameException ||
+			e instanceof FileSizeException ||
+			e instanceof LiferayFileItemException ||
+			e instanceof NoSuchFolderException ||
+			e instanceof SourceFileNameException ||
+			e instanceof StorageFieldRequiredException ||
+			e instanceof UploadRequestSizeException ||
+			e instanceof DuplicateLockException ||
+			e instanceof FileEntryLockException.MustOwnLock ||
+			e instanceof InvalidFileVersionException ||
+			e instanceof NoSuchFileEntryException ||
+			e instanceof PrincipalException) {
+
+			SessionErrors.add(actionRequest, e.getClass(), e);
+		}
+		else {
+			throw e;
 		}
 	}
 

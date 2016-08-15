@@ -20,15 +20,31 @@
 	<%
 		String redirect = ParamUtil.getString(request, "redirect");
 
-		FileEntry fileEntry = null;
+		Folder folder = (com.liferay.portal.kernel.repository.model.Folder)request.getAttribute(
+				WebKeys.DOCUMENT_LIBRARY_FOLDER);
 
-		long repositoryId = BeanParamUtil.getLong(fileEntry, request, "repositoryId");
+		long folderId = BeanParamUtil.getLong(folder, request, "folderId", rootFolderId);
 
-		if (repositoryId <= 0) {
-			repositoryId = BeanParamUtil.getLong(fileEntry, request, "groupId");
+		boolean defaultFolderView = false;
+
+		if ((folder == null) && (folderId != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID)) {
+			defaultFolderView = true;
 		}
 
-		long folderId = BeanParamUtil.getLong(fileEntry, request, "folderId");
+		if (defaultFolderView) {
+			try {
+				folder = DLAppLocalServiceUtil.getFolder(folderId);
+			}
+			catch (NoSuchFolderException nsfe) {
+				folderId = DLFolderConstants.DEFAULT_PARENT_FOLDER_ID;
+			}
+		}
+
+		long repositoryId = scopeGroupId;
+
+		if (folder != null) {
+			repositoryId = folder.getRepositoryId();
+		}
 
 		long fileEntryTypeId = ParamUtil.getLong(request, "fileEntryTypeId", -1);
 
