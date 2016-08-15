@@ -13,7 +13,7 @@ import javax.portlet.RenderResponse;
  */
 @Component(
 		property = {
-				"javax.portlet.name=" + DLPortletKeys.DOCUMENT_LIBRARY,
+				"javax.portlet.name=" + DLPortletKeys.MEDIA_GALLERY_DISPLAY,
 				"mvc.command.name=/document_library/upload_assignment"
 		},
 		service = MVCRenderCommand.class
