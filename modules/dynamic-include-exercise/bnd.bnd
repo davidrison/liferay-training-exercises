@@ -1,0 +1,8 @@
+Bundle-Name: Liferay Frontend Editor Alloy Syntax Extension Web
+Bundle-SymbolicName: com.liferay.frontend.editor.alloyeditor.syntax.extension.web
+Bundle-Version: 1.0.0
+Liferay-Releng-Module-Group-Description:
+Liferay-Releng-Module-Group-Title:
+Web-ContextPath: /frontend-editor-alloyeditor-syntax-extension-web
+
+-plugin.bundle: com.liferay.ant.bnd.resource.bundle.ResourceBundleLoaderAnalyzerPlugin
